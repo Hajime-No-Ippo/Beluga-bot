@@ -1,4 +1,4 @@
-// MVP Discord bot implementing threaded "Atlas Room" chat mode.
+// Discord bot implementing threaded "Beluga cat" chat mode.
 // Uses discord.js v14 and OpenAI's chat completions. Keep sessions in-memory.
 
 import 'dotenv/config';
@@ -8,10 +8,15 @@ import {
   GatewayIntentBits,
   Partials,
   Events,
+  REST,
+  Routes,
+  ApplicationCommandOptionType,
 } from 'discord.js';
 
 const {
   DISCORD_TOKEN,
+  DISCORD_CLIENT_ID,
+  DISCORD_GUILD_ID,
   OPENAI_API_KEY,
   OPENAI_MODEL = 'gpt-3.5-turbo',
   GEMINI_API_KEY,
@@ -44,6 +49,56 @@ const debug = (...args) => {
 };
 
 const THREAD_PREFIX = 'beluga-cat';
+const BELUGA_QUOTES = [
+  'What if I rename the server to “beluga fan club” 👀',
+  'Meow? Sorry, wrong cat. Beluga mode on.',
+  'Average beluga enjoyer detected. Proceeding with chaos.',
+  'Ping? More like *pong* — stay hydrated.',
+  'Fun fact: this bot runs on vibes and caffeine.',
+  'brb, installing more brain cells...',
+  'You pressed the funny button. Congrats.',
+  'Beluga says: be weird, be kind.',
+];
+const COMMAND_DEFS = [
+  { name: 'ping', description: 'Check bot latency' },
+  { name: 'uptime', description: 'Show bot uptime' },
+  { name: 'info', description: 'Show bot/server info' },
+  { name: 'beluga', description: 'Random beluga-style message' },
+  {
+    name: 'ask',
+    description: 'Start a Beluga thread',
+    options: [
+      {
+        name: 'question',
+        description: 'Topic or question to start with',
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'say',
+    description: 'Make the bot repeat something',
+    options: [
+      {
+        name: 'text',
+        description: 'What should I say?',
+        type: ApplicationCommandOptionType.String,
+        required: true,
+      },
+      {
+        name: 'times',
+        description: 'How many times should I say?',
+        type: 4,
+        required: false,
+        min_value: 1,
+        max_value: 10,
+      },
+    ],
+  },
+  { name: 'stop', description: 'End the current thread session' },
+  { name: 'reset', description: 'Clear memory for the current thread session' },
+];
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
@@ -60,6 +115,26 @@ const MAX_TOKENS = 800; // allow longer replies
 client.once(Events.ClientReady, (c) => {
   console.log(`Atlas Simulator ready as ${c.user.tag}`);
   c.user.setPresence({ activities: [{ name: 'type /ask to start a chat' }], status: 'online' });
+});
+
+client.once(Events.ClientReady, async () => {
+  if (!DISCORD_TOKEN || !DISCORD_CLIENT_ID) {
+    console.warn('Skipping slash command registration (missing DISCORD_CLIENT_ID).');
+    return;
+  }
+
+  const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
+  const route = DISCORD_GUILD_ID
+    ? Routes.applicationGuildCommands(DISCORD_CLIENT_ID, DISCORD_GUILD_ID)
+    : Routes.applicationCommands(DISCORD_CLIENT_ID);
+
+  try {
+    console.log('Registering slash commands for Beluga:', COMMAND_DEFS.map((c) => c.name));
+    await rest.put(route, { body: COMMAND_DEFS });
+    console.log('Registered slash commands.');
+  } catch (err) {
+    console.error('Failed to register slash commands:', err);
+  }
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -88,6 +163,108 @@ client.on(Events.MessageCreate, async (message) => {
     }
   } catch (err) {
     console.error('Error handling message', err);
+  }
+});
+
+function prefixThreadName(name, prefix = 'ARCHIVED') {
+  const cleanPrefix = prefix.replace(/\s+/g, ' ').trim();
+  const already = name.startsWith(`[${cleanPrefix}] `) || name.startsWith(`${cleanPrefix} `);
+  if (already) return name;
+
+  const newName = `[${cleanPrefix}] ${name}`;
+  // Discord thread name max length is 100
+  return newName.slice(0, 100);
+}
+
+
+client.on(Events.InteractionCreate, async (interaction) => {
+  try {
+    if (!interaction.isChatInputCommand()) return;
+
+    if (interaction.commandName === 'ping') {
+      const sent = await interaction.reply({ content: 'Pinging...', fetchReply: true });
+      const latency = sent.createdTimestamp - interaction.createdTimestamp;
+      const api = Math.round(client.ws.ping);
+      await interaction.editReply(`Pong! ${latency}ms (API ${api}ms)`);
+      return;
+    }
+
+    if (interaction.commandName === 'uptime') {
+      const seconds = Math.floor(process.uptime());
+      await interaction.reply(`Uptime: ${formatDuration(seconds)}`);
+      return;
+    }
+
+    if (interaction.commandName === 'info') {
+      const guildName = interaction.guild?.name || 'DM';
+      const members = interaction.guild?.memberCount;
+      const memberText = members ? `${members} members` : 'members unknown';
+      const api = Math.round(client.ws.ping);
+      await interaction.reply(`Bot: ${client.user.tag} • Server: ${guildName} • ${memberText} • API ${api}ms`);
+      return;
+    }
+
+    if (interaction.commandName === 'beluga') {
+      const choice = BELUGA_QUOTES[Math.floor(Math.random() * BELUGA_QUOTES.length)];
+      await interaction.reply(choice);
+      return;
+    }
+
+    if (interaction.commandName === 'ask') {
+      if (interaction.channel?.type !== ChannelType.GuildText) {
+        await interaction.reply({ content: 'Use this in a server text channel.', ephemeral: true });
+        return;
+      }
+      const topic = interaction.options.getString('question')?.trim() || 'chat';
+      const replyMessage = await interaction.reply({ content: 'Starting thread...', fetchReply: true });
+      await startThreadSession(replyMessage, topic);
+      return;
+    }
+    
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    if (interaction.commandName === 'say') {
+      const text = interaction.options.getString('text', true).trim();
+      const times = interaction.options.getInteger('times') ?? 1;
+      console.log('timesRaw =', times, 'allowOptions =', interaction.options.data );
+      if (!text) {
+        await interaction.reply({ content: 'Please provide text to say.', ephemeral: true });
+        return;
+      }
+      const cappedTimes = Math.max(1, Math.min(times, 10)); 
+      const msg = text.slice(0, 2000); // final safety cap
+      await interaction.reply({ content: msg, allowedMentions: { parse: [] } });
+      for ( let i = 1; i < cappedTimes; i++ ){
+        await sleep(700);
+        await interaction.followUp({ content: msg, allowedMentions: { parse: [] } });
+      }
+      return;
+    }
+
+    if (interaction.commandName === 'stop' || interaction.commandName === 'reset') {
+      if (!interaction.channel?.isThread()) {
+        await interaction.reply({ content: 'Use this inside a Beluga thread.', ephemeral: true });
+        return;
+      }
+
+      let session = sessions.get(interaction.channel.id);
+      if (!session) session = ensureSessionFromExistingThread(interaction.channel);
+      if (!session) { 
+        await interaction.reply({ content: 'No active Beluga session in this thread.', ephemeral: true });
+        return;
+      }
+
+      if (interaction.commandName === 'stop') {
+        await interaction.reply('Ending session...');
+        await endSession(interaction.channel, 'Session ended by user.');
+        return;
+      }
+
+      await resetSession(interaction.channel, session);
+      await interaction.reply({ content: 'Memory cleared for this session.', ephemeral: true });
+      return;
+    }
+  } catch (err) {
+    console.error('Error handling interaction', err);
   }
 });
 
@@ -147,6 +324,19 @@ function trimMemory(memory) {
   if (extra > 0) memory.splice(0, extra);
 }
 
+function formatDuration(totalSeconds) {
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  parts.push(`${seconds}s`);
+  return parts.join(' ');
+}
+
 async function sendReply(thread, session, text) {
   session.memory.push({ role: 'assistant', content: text });
   trimMemory(session.memory);
@@ -173,7 +363,15 @@ async function endSession(thread, reason = 'Session ended.') {
   }
 
   try {
-    if (!thread.archived) await thread.setArchived(true, 'Atlas session ended');
+    const currentName = thread.name ?? 'thread';
+    const renamed = prefixThreadName(currentName, 'ARCHIVED');
+    if (renamed !== currentName) await thread.setName(renamed);
+  } catch (err) {
+    console.warn('Could not rename thread before archive:', err.message);
+  }
+
+  try {
+    if (!thread.archived) await thread.setArchived(true, 'Begula service session ended');
   } catch (err) {
     console.warn('Could not archive thread:', err.message);
   }
