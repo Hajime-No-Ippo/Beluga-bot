@@ -2,6 +2,8 @@
 
 Beluga Cat is a playful Discord bot inspired by the chaotic “beluga” vibe — memes, quick replies, tiny utilities, and fun interactions for your server.
 
+<img width="200" height="200" alt="image" align-items="center" src="https://github.com/user-attachments/assets/245a90e6-764f-462c-9805-e9bdd01372c7"/>
+
 > ✅ Works in servers  
 > 🧵 Optional: thread-based “chat mode” (if enabled)  
 > 🔒 Your token stays local — you host it yourself
