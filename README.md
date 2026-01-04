@@ -26,11 +26,16 @@ Beluga Cat is a playful Discord bot inspired by the chaotic “beluga” vibe �
 Use the invite link below:
 
 - **Invite Link:** `<PUT_YOUR_INVITE_LINK_HERE>`
-
+<img width="1133" height="769" alt="image" src="https://github.com/user-attachments/assets/5671e11d-d1ff-4964-9102-c7ab69d0d7eb" />
 > If you don’t have an invite link yet, ask the bot owner/admin to generate one in the Discord Developer Portal.
 
 ### 2) Give it permissions
+<img width="982" height="116" alt="image" src="https://github.com/user-attachments/assets/58f2a959-9655-4b83-92ea-92d1ab0bca7c" />
+
 Recommended permissions:
+<img width="1100" height="699" alt="image" src="https://github.com/user-attachments/assets/e3922e48-3548-4eef-bceb-9028674ee0ab" />
+
+
 - Read Messages / View Channels
 - Send Messages
 - Embed Links
