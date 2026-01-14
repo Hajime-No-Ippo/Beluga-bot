@@ -58,6 +58,7 @@ const BELUGA_QUOTES = [
   'brb, installing more brain cells...',
   'You pressed the funny button. Congrats.',
   'Beluga says: be weird, be kind.',
+  'How can i pass my exam.',
 ];
 const COMMAND_DEFS = [
   { name: 'ping', description: 'Check bot latency' },
