@@ -48,7 +48,11 @@ const debug = (...args) => {
   if (DEBUG_LOG === 'true') console.log('[atlas-debug]', ...args);
 };
 
+// Thread name define for LLM sessions
 const THREAD_PREFIX = 'beluga-cat';
+
+// System prompt for the LLM
+// Random beluga-style quotes in JSON array
 const BELUGA_QUOTES = [
   'What if I rename the server to “beluga fan club” 👀',
   'Meow? Sorry, wrong cat. Beluga mode on.',
@@ -60,6 +64,8 @@ const BELUGA_QUOTES = [
   'Beluga says: be weird, be kind.',
   'How can i pass my exam.',
 ];
+
+// Define slash commands, Build slash commands
 const COMMAND_DEFS = [
   { name: 'ping', description: 'Check bot latency' },
   { name: 'uptime', description: 'Show bot uptime' },
@@ -101,6 +107,7 @@ const COMMAND_DEFS = [
   { name: 'reset', description: 'Clear memory for the current thread session' },
 ];
 
+// Create Discord client, using Discord.js v14
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
   partials: [Partials.Channel],
@@ -113,8 +120,9 @@ const COOLDOWN_MS = 1_000; // shorter cooldown
 const MEMORY_LIMIT = 40; // keep last 40 turns
 const MAX_TOKENS = 800; // allow longer replies
 
+// On ready for LLM thread
 client.once(Events.ClientReady, (c) => {
-  console.log(`Atlas Simulator ready as ${c.user.tag}`);
+  console.log(`Beluga ready as ${c.user.tag}`);
   c.user.setPresence({ activities: [{ name: 'type /ask to start a chat' }], status: 'online' });
 });
 
@@ -150,11 +158,13 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     // Handle commands inside active threads
-    if (message.channel.isThread()) {
+
+    if (message.channel.isThread()) {   // The basic condition, check if in a thread
       let session = sessions.get(message.channel.id);
       if (!session) session = ensureSessionFromExistingThread(message.channel);
       if (!session) debug('No session found for thread', message.channel.id, 'content:', message.content);
 
+      // Secondeary conditions for commands, if true, and input mateches /stop or /reset
       if (message.content === '/stop') return endSession(message.channel, 'Session ended by user.');
       if (message.content === '/reset') return resetSession(message.channel, session);
 
@@ -167,8 +177,11 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
+// Prefix thread name with ARCHIVED if the thread is being archived (session ended)
 function prefixThreadName(name, prefix = 'ARCHIVED') {
+  // Clean up prefix spacing
   const cleanPrefix = prefix.replace(/\s+/g, ' ').trim();
+  // Check if already prefixed
   const already = name.startsWith(`[${cleanPrefix}] `) || name.startsWith(`${cleanPrefix} `);
   if (already) return name;
 
@@ -182,6 +195,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (!interaction.isChatInputCommand()) return;
 
+    // Handle slash commands of ping, uptime, info, beluga, ask, stop, reset, say
     if (interaction.commandName === 'ping') {
       const sent = await interaction.reply({ content: 'Pinging...', fetchReply: true });
       const latency = sent.createdTimestamp - interaction.createdTimestamp;
@@ -264,14 +278,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.reply({ content: 'Memory cleared for this session.', ephemeral: true });
       return;
     }
+    // Catch all for unknown commands
   } catch (err) {
     console.error('Error handling interaction', err);
   }
 });
 
+// Start a new thread session from a trigger message /ask command 
 async function startThreadSession(triggerMessage, topic) {
-  const threadName = `${THREAD_PREFIX} • ${topic}`.slice(0, 95);
-  const thread = await triggerMessage.startThread({
+  const threadName = `${THREAD_PREFIX} • ${topic}`.slice(0, 95); // Discord thread name max 100 chars, enable restriction for prefix
+  // Create thread, append the name and the maximum time for this thread, based on the Discord limits
+  const thread = await triggerMessage.startThread({ 
     name: threadName,
     autoArchiveDuration: 60, // minutes
   });
