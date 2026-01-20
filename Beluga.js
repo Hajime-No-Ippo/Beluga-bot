@@ -293,6 +293,7 @@ async function startThreadSession(triggerMessage, topic) {
     autoArchiveDuration: 60, // minutes
   });
 
+  // Initialize session, best for maintaining context
   const session = {
     topic,
     startedBy: triggerMessage.author.id,
@@ -303,6 +304,7 @@ async function startThreadSession(triggerMessage, topic) {
 
   sessions.set(thread.id, session);
 
+  // Notify in thread
   await thread.send(
     `I'm active in this thread now. Topic: **${topic}**.\n` +
       'Use `/stop` to end, `/reset` to clear memory. I time out after 20 minutes of inactivity.',
@@ -310,6 +312,7 @@ async function startThreadSession(triggerMessage, topic) {
 
   await sendReply(thread, session, 'How can I help?');
 }
+
 
 async function handleThreadMessage(message, session) {
   if (REQUIRE_PREFIX && !message.content.startsWith(TRIGGER_PREFIX)) return;
